@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 using Nexsteaduser.CulvertProxy.Core.Configuration;
 using Nexsteaduser.CulvertProxy.Core.Net;
@@ -15,6 +16,9 @@ public static class HttpConnectClient
         TimeSpan timeout,
         CancellationToken cancellationToken)
     {
+        // 纵深防御：即使调用方漏校验，含换行/控制字符的目标也绝不能拼进请求行。
+        ValidateConnectTarget(target);
+
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         cts.CancelAfter(timeout);
         var token = cts.Token;
@@ -50,6 +54,30 @@ public static class HttpConnectClient
         return block.Leftover.Length == 0
             ? stream
             : new PrefixedStream(block.Leftover, 0, block.Leftover.Length, stream);
+    }
+
+    /// <summary>校验 CONNECT 目标：IP 字面量放行；域名必须只含 DNS 安全字符，含 \r 或 \n 时直接拒绝。</summary>
+    internal static void ValidateConnectTarget(ProxyTarget target)
+    {
+        if (target.Port is < 1 or > 65535)
+        {
+            throw new ProxyHandshakeException($"CONNECT 目标端口非法：{target.Port}。");
+        }
+
+        if (target.Host.Contains('\r') || target.Host.Contains('\n'))
+        {
+            throw new ProxyHandshakeException("CONNECT 目标含换行符，已拒绝。");
+        }
+
+        if (IPAddress.TryParse(target.Host, out _))
+        {
+            return;
+        }
+
+        if (!Socks5Protocol.IsValidDomainHost(Socks5Protocol.ToAsciiHost(target.Host)))
+        {
+            throw new ProxyHandshakeException("CONNECT 目标域名含非法字符，已拒绝。");
+        }
     }
 
     private static string ExtractReason(string headerText)

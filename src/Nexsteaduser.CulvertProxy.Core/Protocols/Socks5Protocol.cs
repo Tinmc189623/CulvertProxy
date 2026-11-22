@@ -172,6 +172,11 @@ public static class Socks5Protocol
         }
 
         var ascii = ToAsciiHost(target.Host);
+        if (!IsValidDomainHost(ascii))
+        {
+            throw new ProxyHandshakeException($"目标域名非法：{target.Host}。");
+        }
+
         var hostBytes = Encoding.ASCII.GetBytes(ascii);
         if (hostBytes.Length is 0 or > 255)
         {
@@ -215,7 +220,14 @@ public static class Socks5Protocol
                 await stream.ReadExactlyAsync(lengthBuffer, cancellationToken).ConfigureAwait(false);
                 var domain = new byte[lengthBuffer[0] + 2];
                 await stream.ReadExactlyAsync(domain, cancellationToken).ConfigureAwait(false);
-                return new ProxyTarget(Encoding.ASCII.GetString(domain, 0, lengthBuffer[0]), ReadPort(domain, lengthBuffer[0]));
+                var host = Encoding.ASCII.GetString(domain, 0, lengthBuffer[0]);
+                if (!IsValidDomainHost(host))
+                {
+                    // 未校验的域名会原样拼进上游 HTTP CONNECT 请求，\r\n 可注入任意请求头。
+                    throw new ProxyHandshakeException("SOCKS5 域名含非法字符，已拒绝。");
+                }
+
+                return new ProxyTarget(host, ReadPort(domain, lengthBuffer[0]));
             }
             default:
                 throw new ProxyHandshakeException($"未知地址类型：0x{addressType:X2}。");
@@ -241,6 +253,39 @@ public static class Socks5Protocol
     }
 
     private static int ReadPort(ReadOnlySpan<byte> source, int offset) => (source[offset] << 8) | source[offset + 1];
+
+    /// <summary>域名是否只含 DNS 安全字符（字母、数字、连字符、点），且标签非空、首尾不是点或连字符。</summary>
+    /// <remarks>用于堵住 CRLF/控制字符注入：SOCKS5 域名是长度前缀的二进制字段，\r、\n、空格等会原样通过，
+    /// 若拼进上游 HTTP CONNECT 请求即可注入任意请求头。IP 字面量不走本校验。
+    /// 总长度上限是 SOCKS5 线路格式的 255（一个长度字节），不是 DNS 的 253。
+    /// 注意：不做每标签 ≤63 的硬性校验——现有测试 Socks5UdpCodecTests.WriteHeader_Supports_Long_Domain_Names
+    /// 要求 254/255 字符的长域名能编码通过，其构造方式是 250/251 字符的单一标签加 .com；
+    /// 加标签 63 上限会让这两个测试继续失败。不合 DNS 标签规范的域名由后续 DNS 解析拒绝。</remarks>
+    public static bool IsValidDomainHost(string host)
+    {
+        if (string.IsNullOrEmpty(host) || host.Length > 255)
+        {
+            return false;
+        }
+
+        if (host[0] is '.' or '-' || host[^1] is '.' or '-')
+        {
+            return false;
+        }
+
+        foreach (var c in host)
+        {
+            if (c is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9' or '-' or '.')
+            {
+                continue;
+            }
+
+            return false;
+        }
+
+        // 拒绝空标签（如连续两个点）。
+        return !host.Contains("..", StringComparison.Ordinal);
+    }
 
     /// <summary>域名转 ASCII（punycode），失败时原样返回。</summary>
     public static string ToAsciiHost(string host)

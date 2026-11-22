@@ -67,6 +67,12 @@ public static class Socks5UdpCodec
 
                 host = System.Text.Encoding.ASCII.GetString(packet.Slice(offset, length));
                 offset += length;
+                if (!Socks5Protocol.IsValidDomainHost(host))
+                {
+                    // 与 TCP 入口一致：拒绝含控制字符/空格等的域名，避免其进入路由与日志。
+                    return false;
+                }
+
                 break;
             default:
                 return false;

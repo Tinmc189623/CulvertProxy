@@ -1,5 +1,8 @@
 using System.Buffers.Binary;
+using System.Collections.Concurrent;
 using System.Net;
+using System.Net.Sockets;
+using System.Text;
 using Nexsteaduser.CulvertProxy.Core.Configuration;
 using Nexsteaduser.CulvertProxy.Core.Dns;
 using Nexsteaduser.CulvertProxy.Core.Diagnostics;
@@ -454,5 +457,170 @@ public sealed class PacTests
         Assert.Contains("FindProxyForURL", pac);
         Assert.Contains("SOCKS5 127.0.0.1:1080", pac);
         Assert.Contains("DIRECT", pac);
+    }
+}
+
+/// <summary>AUDIT2 M1：SOCKS5 域名校验，堵住 CRLF 注入上游 HTTP CONNECT 请求。</summary>
+public sealed class Socks5DomainValidationTests
+{
+    [Theory]
+    [InlineData("example.com")]
+    [InlineData("www.example.com")]
+    [InlineData("localhost")]
+    [InlineData("a-b.example.com")]
+    [InlineData("xn--nxasmq6b.example")]
+    [InlineData("a1.example2.com")]
+    public void Valid_Domains_Are_Accepted(string host)
+    {
+        Assert.True(Socks5Protocol.IsValidDomainHost(host));
+    }
+
+    [Theory]
+    [InlineData("example.com\r\nX-Injected: 1")]
+    [InlineData("exa\nmple.com")]
+    [InlineData("exa\rmple.com")]
+    [InlineData("example .com")]
+    [InlineData("exam ple.com")]
+    [InlineData("")]
+    [InlineData("exa\x01mple.com")]
+    [InlineData("exa\x7fmple.com")]
+    [InlineData("example.com:80")]
+    [InlineData("example.com/path")]
+    [InlineData("exam?ple.com")]
+    [InlineData("exam_ple.com")]
+    [InlineData("-example.com")]
+    [InlineData("example.com-")]
+    [InlineData(".example.com")]
+    [InlineData("example.com.")]
+    [InlineData("exa..mple.com")]
+    public void Invalid_Domains_Are_Rejected(string host)
+    {
+        Assert.False(Socks5Protocol.IsValidDomainHost(host));
+    }
+
+    [Fact]
+    public async Task ReadEndpointAsync_Rejects_Crlf_Domain()
+    {
+        var malicious = Encoding.ASCII.GetBytes("example.com\r\nX-Injected: 1");
+        using var stream = new MemoryStream();
+        stream.WriteByte((byte)malicious.Length);
+        stream.Write(malicious);
+        stream.WriteByte(1);
+        stream.WriteByte(187); // 端口 443
+        stream.Position = 0;
+
+        await Assert.ThrowsAsync<ProxyHandshakeException>(() =>
+            Socks5Protocol.ReadEndpointAsync(stream, Socks5Protocol.AddressDomain, CancellationToken.None).AsTask());
+    }
+
+    [Fact]
+    public async Task ReadEndpointAsync_Accepts_Valid_Domain()
+    {
+        var host = Encoding.ASCII.GetBytes("example.com");
+        using var stream = new MemoryStream();
+        stream.WriteByte((byte)host.Length);
+        stream.Write(host);
+        stream.WriteByte(0);
+        stream.WriteByte(80);
+        stream.Position = 0;
+
+        var target = await Socks5Protocol.ReadEndpointAsync(stream, Socks5Protocol.AddressDomain, CancellationToken.None);
+        Assert.Equal("example.com", target.Host);
+        Assert.Equal(80, target.Port);
+    }
+
+    [Fact]
+    public void EncodeAddressAndPort_Rejects_Crlf_Domain()
+    {
+        var buffer = new byte[300];
+        Assert.Throws<ProxyHandshakeException>(() =>
+            Socks5Protocol.EncodeAddressAndPort(new ProxyTarget("example.com\r\nX-Injected: 1", 80), buffer));
+    }
+
+    [Fact]
+    public void TryParseHeader_Rejects_Crlf_Domain()
+    {
+        var host = Encoding.ASCII.GetBytes("example.com\r\nX-Injected: 1");
+        var packet = new byte[4 + 1 + host.Length + 2];
+        packet[3] = Socks5Protocol.AddressDomain;
+        packet[4] = (byte)host.Length;
+        host.CopyTo(packet, 5);
+        packet[5 + host.Length] = 0;
+        packet[6 + host.Length] = 53;
+        Assert.False(Socks5UdpCodec.TryParseHeader(packet, out _, out _));
+    }
+
+    [Theory]
+    [InlineData("example.com\r\nX-Injected: 1", 80)]
+    [InlineData("exa\nmple.com", 80)]
+    [InlineData("example.com", 0)]
+    [InlineData("example.com", 70000)]
+    public void ValidateConnectTarget_Rejects_Invalid_Targets(string host, int port)
+    {
+        Assert.Throws<ProxyHandshakeException>(() =>
+            HttpConnectClient.ValidateConnectTarget(new ProxyTarget(host, port)));
+    }
+
+    [Theory]
+    [InlineData("example.com", 443)]
+    [InlineData("127.0.0.1", 8080)]
+    [InlineData("::1", 8080)]
+    public void ValidateConnectTarget_Accepts_Valid_Targets(string host, int port)
+    {
+        HttpConnectClient.ValidateConnectTarget(new ProxyTarget(host, port));
+    }
+}
+
+/// <summary>AUDIT2 M2：直连 UDP 只接受已登记的期望来源回包。</summary>
+public sealed class DirectUdpReplyValidationTests
+{
+    [Fact]
+    public void IsExpectedDirectReply_Accepts_Registered_And_Rejects_Unknown()
+    {
+        var expected = new ConcurrentDictionary<IPEndPoint, DateTimeOffset>();
+        var now = DateTimeOffset.UtcNow;
+        var target = new IPEndPoint(IPAddress.Parse("8.8.8.8"), 53);
+        expected[target] = now + Socks5UdpRelay.DirectReplyWindow;
+
+        Assert.True(Socks5UdpRelay.IsExpectedDirectReply(target, expected, now));
+        Assert.False(Socks5UdpRelay.IsExpectedDirectReply(new IPEndPoint(IPAddress.Parse("8.8.4.4"), 53), expected, now));
+        Assert.False(Socks5UdpRelay.IsExpectedDirectReply(new IPEndPoint(IPAddress.Parse("8.8.8.8"), 54), expected, now));
+    }
+
+    [Fact]
+    public void IsExpectedDirectReply_Rejects_Expired_And_Prunes_It()
+    {
+        var expected = new ConcurrentDictionary<IPEndPoint, DateTimeOffset>();
+        var now = DateTimeOffset.UtcNow;
+        var target = new IPEndPoint(IPAddress.Parse("8.8.8.8"), 53);
+        expected[target] = now - TimeSpan.FromSeconds(1);
+
+        Assert.False(Socks5UdpRelay.IsExpectedDirectReply(target, expected, now));
+        Assert.Empty(expected);
+    }
+}
+
+/// <summary>AUDIT2 M3：本地入口首字节超时与并发连接上限。</summary>
+public sealed class LocalProxyServerLimitsTests
+{
+    [Fact]
+    public void Limits_Are_Configured()
+    {
+        Assert.Equal(512, LocalProxyServer.MaxConcurrentConnections);
+        Assert.Equal(TimeSpan.FromSeconds(10), LocalProxyServer.FirstByteTimeout);
+    }
+
+    [Fact]
+    public async Task Idle_Connection_Is_Closed_After_FirstByteTimeout()
+    {
+        await using var host = await EngineHost.StartAsync();
+        using var client = new TcpClient();
+        await client.ConnectAsync(IPAddress.Loopback, host.Port);
+        var stream = client.GetStream();
+        var buffer = new byte[1];
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        // 一个字节都不发：服务端应在首字节超时（10 秒）后关闭连接，读到 0。
+        var read = await stream.ReadAsync(buffer, cts.Token);
+        Assert.Equal(0, read);
     }
 }

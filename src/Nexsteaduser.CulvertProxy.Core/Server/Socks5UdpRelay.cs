@@ -28,6 +28,7 @@ internal sealed class Socks5UdpRelay : IAsyncDisposable
     private readonly ConcurrentBag<Task> _background = [];
     private readonly object _directLock = new();
     private readonly List<Socket> _directSockets = [];
+    private readonly ConcurrentDictionary<IPEndPoint, DateTimeOffset> _directExpectedReplies = new();
     private IPEndPoint? _clientEndPoint;
     private int _unsupportedLogged;
     private int _disposed;
@@ -261,8 +262,36 @@ internal sealed class Socks5UdpRelay : IAsyncDisposable
         }
 
         var address = addresses.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork) ?? addresses[0];
+        var destination = new IPEndPoint(address, target.Port);
+        RegisterDirectExpectedReply(destination);
         var socket = GetDirectSocket(address.AddressFamily);
-        await socket.SendToAsync(payload, SocketFlags.None, new IPEndPoint(address, target.Port), cancellationToken).ConfigureAwait(false);
+        await socket.SendToAsync(payload, SocketFlags.None, destination, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>直连 UDP 应答的有效窗口：只接受窗口内发往该目标的回包，过期条目在校验时淘汰。</summary>
+    internal static readonly TimeSpan DirectReplyWindow = TimeSpan.FromSeconds(120);
+
+    /// <summary>登记一次直连发送的期望回包来源（地址+端口）。</summary>
+    internal void RegisterDirectExpectedReply(IPEndPoint destination)
+    {
+        _directExpectedReplies[destination] = DateTimeOffset.UtcNow + DirectReplyWindow;
+    }
+
+    /// <summary>直连回包是否来自已登记且未过期的期望来源；过期条目会被淘汰。</summary>
+    internal static bool IsExpectedDirectReply(
+        IPEndPoint remote,
+        ConcurrentDictionary<IPEndPoint, DateTimeOffset> expected,
+        DateTimeOffset now)
+    {
+        foreach (var pair in expected)
+        {
+            if (pair.Value <= now)
+            {
+                expected.TryRemove(pair.Key, out _);
+            }
+        }
+
+        return expected.TryGetValue(remote, out var expiresAt) && expiresAt > now;
     }
 
     private Socket GetDirectSocket(AddressFamily family)
@@ -314,6 +343,13 @@ internal sealed class Socks5UdpRelay : IAsyncDisposable
 
                 if (result.ReceivedBytes > 0 && result.RemoteEndPoint is IPEndPoint remote)
                 {
+                    if (!IsExpectedDirectReply(remote, _directExpectedReplies, DateTimeOffset.UtcNow))
+                    {
+                        // 未登记的来源一律丢弃：否则任意本机/局域网进程都可伪造应答（如伪造 DNS 结果）。
+                        _engine.Log.Debug("UDP", $"丢弃非预期来源的直连 UDP 应答：{remote}。");
+                        continue;
+                    }
+
                     await SendToClientAsync(
                         new ProxyTarget(remote.Address.ToString(), remote.Port),
                         buffer.AsMemory(0, result.ReceivedBytes),
@@ -491,6 +527,7 @@ internal sealed class Socks5UdpRelay : IAsyncDisposable
         }
 
         _upstreams.Clear();
+        _directExpectedReplies.Clear();
         lock (_directLock)
         {
             foreach (var socket in _directSockets)
