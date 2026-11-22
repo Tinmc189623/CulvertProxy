@@ -207,6 +207,10 @@ dotnet test .\tests\Nexsteaduser.CulvertProxy.Tests\Nexsteaduser.CulvertProxy.Te
 
 ---
 
+## 参与贡献
+
+缺陷修复、测试、文档和经过验证的功能都欢迎提交。构建方式、分支约定、原生 Hook 的验证要求和安全报告渠道见 [CONTRIBUTING.md](CONTRIBUTING.md)，提交 PR 时请使用默认模板。
+
 ## 已知边界
 
 - 没有内核驱动，因此没有系统级强制接管、UDP 重定向、进程创建前注入，也不需要驱动签名。换来的是部署简单、蓝屏风险低。
