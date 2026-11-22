@@ -2,8 +2,10 @@
 
 [![Build](https://img.shields.io/github/actions/workflow/status/Tinmc189623/CulvertProxy/build.yml?style=flat-square&branch=main)](https://github.com/Tinmc189623/CulvertProxy/actions)
 [![Site](https://img.shields.io/badge/site-tinmc189623.github.io-e6a23c?style=flat-square)](https://tinmc189623.github.io/CulvertProxy/)
+[![Wiki](https://img.shields.io/badge/wiki-project-2ea44f?style=flat-square)](https://github.com/Tinmc189623/CulvertProxy/wiki)
 [![Release](https://img.shields.io/github/v/release/Tinmc189623/CulvertProxy?style=flat-square)](https://github.com/Tinmc189623/CulvertProxy/releases/latest)
 [![License](https://img.shields.io/github/license/Tinmc189623/CulvertProxy?style=flat-square)](LICENSE)
+[![Security policy](https://img.shields.io/badge/security-policy-e6a23c?style=flat-square)](SECURITY.md)
 [![.NET](https://img.shields.io/badge/.NET-11-512BD4?style=flat-square)](https://dotnet.microsoft.com/)
 [![Platform](https://img.shields.io/badge/Windows-11%20x64-0078D4?style=flat-square)](https://www.microsoft.com/windows/windows-11)
 
@@ -205,6 +207,13 @@ dotnet test .\tests\Nexsteaduser.CulvertProxy.Tests\Nexsteaduser.CulvertProxy.Te
 
 原生 Hook 单独构建，不参与 `dotnet test`；它的行为由冒烟工具覆盖。
 
+仓库的质量门禁：
+
+- GitHub Actions 在每次推送和 PR 上构建原生 Hook、运行完整解决方案与全部测试
+- CodeQL 扫描 C# 代码，Dependabot 与 dependency-review 跟踪依赖变化
+- `main` 禁止强制推送与删除，PR 合并要求 `windows` 检查通过且分支保持最新
+- 安全问题按 [SECURITY.md](SECURITY.md) 私下报告
+
 ---
 
 ## 参与贡献
@@ -222,6 +231,10 @@ dotnet test .\tests\Nexsteaduser.CulvertProxy.Tests\Nexsteaduser.CulvertProxy.Te
 - 端口转发类程序、使用原始套接字或自带内核网络栈的软件可能绕过 Winsock Hook。
 
 ---
+
+## 安全
+
+漏洞报告渠道、支持版本、安全边界和加固建议见 [SECURITY.md](SECURITY.md)。不要在公开 Issue 中披露可利用漏洞、令牌或未脱敏日志。
 
 ## 合法使用
 

@@ -63,7 +63,7 @@ dotnet test .\tests\Nexsteaduser.CulvertProxy.Tests\Nexsteaduser.CulvertProxy.Te
 
 ## 安全
 
-请不要在公开 Issue 中披露可利用漏洞、令牌或用户数据。安全问题发送到 `admin@nexsteaduser.com`，并附上复现步骤和影响范围。
+请不要在公开 Issue 中披露可利用漏洞、令牌或用户数据。安全问题发送到 `admin@nexsteaduser.com`，详细要求见 [SECURITY.md](SECURITY.md)。
 
 ## 许可与品牌
 
