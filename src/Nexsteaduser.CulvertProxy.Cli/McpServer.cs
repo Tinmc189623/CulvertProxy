@@ -105,7 +105,7 @@ internal static class McpServer
                     {
                         name = "culvertproxy",
                         title = "CulvertProxy",
-                        version = "1.0.2",
+                        version = "1.0.3",
                     },
                 });
             case "ping":

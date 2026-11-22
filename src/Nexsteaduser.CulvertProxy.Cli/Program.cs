@@ -10,7 +10,7 @@ namespace Nexsteaduser.CulvertProxy.Cli;
 
 internal static class Program
 {
-    private const string Version = "1.0.2";
+    private const string Version = "1.0.3";
 
     public static async Task<int> Main(string[] args)
     {

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
   <Package
       Name="CulvertProxy"
       Manufacturer="Nexsteaduser"
@@ -15,7 +16,11 @@
     <Icon Id="AppIcon" SourceFile="$(var.PublishDir)\Assets\culvert.ico" />
     <Property Id="ARPPRODUCTICON" Value="AppIcon" />
     <Property Id="ARPURLINFOABOUT" Value="https://tinmc189623.github.io/CulvertProxy/" />
-    <Property Id="ARPNOMODIFY" Value="1" />
+    <Property Id="ARPCONTACT" Value="admin@nexsteaduser.com" />
+    <Property Id="ARPCOPYRIGHT" Value="Copyright © 2026 Nexsteaduser. All Rights Reserved." />
+
+    <WixVariable Id="WixUILicenseRtf" Value="$(var.LicenseRtf)" />
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
 
     <Feature Id="Main" Title="CulvertProxy" Level="1">
       <ComponentGroupRef Id="AppFiles" />

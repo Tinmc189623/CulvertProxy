@@ -24,8 +24,8 @@ Copyright © 2026 Nexsteaduser. All Rights Reserved.
 到 [Releases](https://github.com/Tinmc189623/CulvertProxy/releases/latest) 下载：
 
 - `CulvertProxy-win-x64.zip`：自包含便携包，解压后直接运行 `CulvertProxy.exe`
-- `CulvertProxy-1.0.2-x64.msi`：按用户安装到 `%LOCALAPPDATA%\Programs\Nexsteaduser\CulvertProxy`，创建开始菜单快捷方式
-- `CulvertProxy-1.0.2-x64.msix`：MSIX 安装包，需要先信任随包的签名证书
+- `CulvertProxy-1.0.3-x64.msi`：按用户安装到 `%LOCALAPPDATA%\Programs\Nexsteaduser\CulvertProxy`，创建开始菜单快捷方式
+- `CulvertProxy-1.0.3-x64.msix`：MSIX 安装包，需要先信任随包的签名证书
 
 包内是自包含发布，不需要预装 .NET 或 Windows App SDK；`cli\culvert.exe` 是无界面 CLI。
 

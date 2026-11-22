@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $publishDir = Join-Path $root "artifacts\publish\win-x64"
 $artifacts = Join-Path $root 'artifacts'
-$version = '1.0.2'
+$version = '1.0.3'
 
 if (-not (Test-Path (Join-Path $publishDir 'CulvertProxy.exe'))) {
     throw "缺少发布目录：$publishDir。请先运行 build.ps1 -Publish。"
@@ -72,8 +72,10 @@ $msi = Join-Path $artifacts "CulvertProxy-$version-x64.msi"
 Write-Host '构建 MSI...' -ForegroundColor Cyan
 wix build (Join-Path $PSScriptRoot 'wix\Product.wxs') `
     -arch x64 `
+    -ext WixToolset.UI.wixext `
     -d "PublishDir=$publishDir" `
     -d "ProductVersion=$version" `
+    -d "LicenseRtf=$(Join-Path $PSScriptRoot 'wix\License.rtf')" `
     -o $msi
 if ($LASTEXITCODE -ne 0) {
     throw 'MSI 构建失败。'
