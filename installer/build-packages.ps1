@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $publishDir = Join-Path $root "artifacts\publish\win-x64"
 $artifacts = Join-Path $root 'artifacts'
-$version = '1.0.1'
+$version = '1.0.2'
 
 if (-not (Test-Path (Join-Path $publishDir 'CulvertProxy.exe'))) {
     throw "缺少发布目录：$publishDir。请先运行 build.ps1 -Publish。"
