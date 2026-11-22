@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 安全漏洞
+    url: mailto:admin@nexsteaduser.com
+    about: 请勿在公开 Issue 中披露可利用漏洞、令牌或用户数据。
+  - name: 在线文档
+    url: https://tinmc189623.github.io/CulvertProxy/
+    about: 下载、功能说明、架构与抗审查部署建议。

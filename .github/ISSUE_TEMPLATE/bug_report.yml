@@ -1,0 +1,112 @@
+name: 缺陷报告
+description: 报告可复现的崩溃、连接失败或行为错误
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交前请先搜索现有 Issue，并使用最新 Release 或 `main` 分支构建复现。
+        安全漏洞不要公开提交，请发送到 admin@nexsteaduser.com。
+
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: 提交前检查
+      options:
+        - label: 我已搜索现有 Issue，确认不是重复问题
+          required: true
+        - label: 我使用的是最新 Release 或近期 `main` 构建
+          required: true
+        - label: 日志与配置片段已移除密码、令牌和真实用户数据
+          required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: CulvertProxy 版本
+      description: 界面「设置」页或 Release 标签中的版本号
+      placeholder: v1.0.0
+    validations:
+      required: true
+
+  - type: input
+    id: windows
+    attributes:
+      label: Windows 版本
+      description: 运行 `winver` 得到的版本与内部版本号
+      placeholder: Windows 11 24H2 (26100.xxxx)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 影响范围
+      options:
+        - 透明接管 / 进程注入
+        - 本地 SOCKS5 / HTTP 入口
+        - 上游代理 / 多跳链路
+        - DNS / DoH / fake-IP
+        - 路由规则
+        - WinUI 界面
+        - CLI
+        - 构建 / 发布
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 按顺序写出最小复现路径
+      placeholder: |
+        1. 添加一个 SOCKS5 上游
+        2. 创建规则 apple.com 走代理
+        3. 启动代理并打开目标应用
+        4. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期行为
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+      description: 包含错误码、连接状态或崩溃现象
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志与截图
+      description: 相关日志、连接页截图或 WER 记录。请先脱敏。
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: config
+    attributes:
+      label: 相关配置
+      description: 只贴相关服务器、规则或设置；不要包含密码和 hook 令牌
+      render: json
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 补充信息
+      description: 是否以管理员运行、是否开启透明接管、是否使用本地 DNS 等
+    validations:
+      required: false
