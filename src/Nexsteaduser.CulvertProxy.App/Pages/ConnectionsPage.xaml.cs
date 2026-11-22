@@ -15,6 +15,7 @@ public sealed partial class ConnectionsPage : Page
     private readonly Dictionary<long, ConnectionRow> _rows = [];
     private readonly DispatcherQueueTimer _timer;
     private readonly DispatcherQueueTimer _filterTimer;
+    private bool _initialized;
 
     public ConnectionsPage()
     {
@@ -29,6 +30,7 @@ public sealed partial class ConnectionsPage : Page
             _filterTimer.Stop();
             Refresh();
         };
+        _initialized = true;
     }
 
     public ObservableCollection<ConnectionRow> Items { get; } = [];
@@ -110,11 +112,17 @@ public sealed partial class ConnectionsPage : Page
         || snapshot.RuleName.Contains(filter, StringComparison.OrdinalIgnoreCase)
         || (snapshot.Route?.Contains(filter, StringComparison.OrdinalIgnoreCase) ?? false);
 
-    private void Filter_Changed(object sender, RoutedEventArgs e) => Refresh();
+    private void Filter_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_initialized)
+        {
+            Refresh();
+        }
+    }
 
     private void Filter_TextChanged(object sender, TextChangedEventArgs e)
     {
-        if (!IsLoaded)
+        if (!_initialized || !IsLoaded)
         {
             return;
         }
@@ -123,7 +131,13 @@ public sealed partial class ConnectionsPage : Page
         _filterTimer.Start();
     }
 
-    private void Refresh_Click(object sender, RoutedEventArgs e) => Refresh();
+    private void Refresh_Click(object sender, RoutedEventArgs e)
+    {
+        if (_initialized)
+        {
+            Refresh();
+        }
+    }
 
     private void Kill_Click(object sender, RoutedEventArgs e)
     {
@@ -132,7 +146,10 @@ public sealed partial class ConnectionsPage : Page
             App.Services.Engine.KillConnection(row.Id);
         }
 
-        Refresh();
+        if (_initialized)
+        {
+            Refresh();
+        }
     }
 }
 
