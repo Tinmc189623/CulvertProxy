@@ -30,6 +30,8 @@
   </ItemGroup>
   <ItemGroup>
     <None Update="Assets\culvert.ico" CopyToOutputDirectory="PreserveNewest" />
+    <None Remove="Assets\culvertproxy-mark.png" />
+    <Content Include="Assets\culvertproxy-mark.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None
       Include="..\..\native\bin\x64\CulvertHook.dll"
       Link="CulvertHook.dll"

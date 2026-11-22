@@ -14,7 +14,7 @@ namespace Nexsteaduser.CulvertProxy.App.Pages;
 public sealed partial class LogsPage : Page
 {
     private const int MaxBuffer = 4000;
-    private const int MaxVisible = 1500;
+    private const int MaxVisible = 1000;
     private static readonly SolidColorBrush TraceBrush = new(Color.FromArgb(255, 148, 163, 184));
     private static readonly SolidColorBrush InfoBrush = new(Color.FromArgb(255, 226, 232, 240));
     private static readonly SolidColorBrush WarnBrush = new(Color.FromArgb(255, 251, 191, 36));
@@ -23,6 +23,8 @@ public sealed partial class LogsPage : Page
     private readonly List<LogRow> _buffer = [];
     private readonly ConcurrentQueue<LogRow> _pending = new();
     private readonly DispatcherQueueTimer _timer;
+    private readonly DispatcherQueueTimer _filterTimer;
+    private ScrollViewer? _scrollViewer;
     private bool _subscribed;
     private bool _paused;
     private int _threshold;
@@ -33,16 +35,26 @@ public sealed partial class LogsPage : Page
         SeverityBox.ItemsSource = new[] { "全部", "信息+", "警告+", "错误" };
         SeverityBox.SelectedIndex = 0;
         _timer = DispatcherQueue.CreateTimer();
-        _timer.Interval = TimeSpan.FromMilliseconds(400);
+        _timer.Interval = TimeSpan.FromMilliseconds(500);
         _timer.Tick += (_, _) => Drain();
+        _filterTimer = DispatcherQueue.CreateTimer();
+        _filterTimer.Interval = TimeSpan.FromMilliseconds(250);
+        _filterTimer.Tick += (_, _) =>
+        {
+            _filterTimer.Stop();
+            Rebuild();
+        };
         Loaded += (_, _) =>
         {
+            _scrollViewer = FindScrollViewer(LogList);
             Subscribe();
             _timer.Start();
         };
         Unloaded += (_, _) =>
         {
             _timer.Stop();
+            _filterTimer.Stop();
+            _scrollViewer = null;
             Unsubscribe();
         };
     }
@@ -94,7 +106,7 @@ public sealed partial class LogsPage : Page
         }
 
         var added = false;
-        for (var i = 0; i < 300 && _pending.TryDequeue(out var row); i++)
+        for (var i = 0; i < 120 && _pending.TryDequeue(out var row); i++)
         {
             _buffer.Add(row);
             added = true;
@@ -112,11 +124,38 @@ public sealed partial class LogsPage : Page
         if (added)
         {
             CountText.Text = $"{Entries.Count} 条";
-            if (AutoScrollToggle.IsOn && Entries.Count > 0)
+            if (AutoScrollToggle.IsOn && Entries.Count > 0 && IsNearBottom())
             {
                 LogList.ScrollIntoView(Entries[^1]);
             }
         }
+    }
+
+    private bool IsNearBottom()
+    {
+        var scrollViewer = _scrollViewer;
+        return scrollViewer is null
+            || scrollViewer.VerticalOffset + scrollViewer.ViewportHeight >= scrollViewer.ScrollableHeight - 48;
+    }
+
+    private static ScrollViewer? FindScrollViewer(DependencyObject root)
+    {
+        if (root is ScrollViewer viewer)
+        {
+            return viewer;
+        }
+
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++)
+        {
+            var found = FindScrollViewer(VisualTreeHelper.GetChild(root, i));
+            if (found is not null)
+            {
+                return found;
+            }
+        }
+
+        return null;
     }
 
     private void TrimBuffer()
@@ -167,10 +206,13 @@ public sealed partial class LogsPage : Page
 
     private void Filter_TextChanged(object sender, TextChangedEventArgs e)
     {
-        if (IsLoaded)
+        if (!IsLoaded)
         {
-            Rebuild();
+            return;
         }
+
+        _filterTimer.Stop();
+        _filterTimer.Start();
     }
 
     private void Pause_Toggled(object sender, RoutedEventArgs e) => _paused = PauseToggle.IsOn;

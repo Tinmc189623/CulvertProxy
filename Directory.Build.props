@@ -7,10 +7,11 @@
     <Product>CulvertProxy</Product>
     <Authors>Nexsteaduser</Authors>
     <Copyright>Copyright © 2026 Nexsteaduser. All Rights Reserved</Copyright>
-    <Version>1.0.0</Version>
-    <FileVersion>1.0.0.0</FileVersion>
+    <Version>1.0.1</Version>
+    <FileVersion>1.0.1.0</FileVersion>
     <Deterministic>true</Deterministic>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
 </Project>
+

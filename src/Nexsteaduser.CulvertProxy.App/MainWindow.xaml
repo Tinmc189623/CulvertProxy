@@ -10,9 +10,7 @@
 
         <Grid x:Name="AppTitleBar" Padding="16,0,150,0" Background="Transparent">
             <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                <Border Width="26" Height="26" CornerRadius="8" Background="{ThemeResource AccentBrush}">
-                    <FontIcon Glyph="&#xE7F0;" FontSize="14" Foreground="{ThemeResource AccentOnBrush}" />
-                </Border>
+                <Image Width="28" Height="28" Source="Assets/culvertproxy-mark.png" Stretch="Uniform" VerticalAlignment="Center" />
                 <TextBlock Text="CulvertProxy" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center" />
                 <TextBlock Text="Nexsteaduser" FontSize="12" Foreground="{ThemeResource SubtleTextBrush}" VerticalAlignment="Center" />
             </StackPanel>

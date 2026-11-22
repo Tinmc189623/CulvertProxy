@@ -14,13 +14,21 @@ public sealed partial class ConnectionsPage : Page
 {
     private readonly Dictionary<long, ConnectionRow> _rows = [];
     private readonly DispatcherQueueTimer _timer;
+    private readonly DispatcherQueueTimer _filterTimer;
 
     public ConnectionsPage()
     {
         InitializeComponent();
         _timer = DispatcherQueue.CreateTimer();
-        _timer.Interval = TimeSpan.FromSeconds(1);
+        _timer.Interval = TimeSpan.FromSeconds(2);
         _timer.Tick += (_, _) => Refresh();
+        _filterTimer = DispatcherQueue.CreateTimer();
+        _filterTimer.Interval = TimeSpan.FromMilliseconds(250);
+        _filterTimer.Tick += (_, _) =>
+        {
+            _filterTimer.Stop();
+            Refresh();
+        };
     }
 
     public ObservableCollection<ConnectionRow> Items { get; } = [];
@@ -36,19 +44,35 @@ public sealed partial class ConnectionsPage : Page
     {
         base.OnNavigatedFrom(e);
         _timer.Stop();
+        _filterTimer.Stop();
     }
 
     private void Refresh()
     {
         var snapshots = App.Services.Engine.GetConnections();
-        var activeOnly = ActiveOnlyToggle.IsOn;
-        var filter = FilterBox.Text.Trim();
-        var snapshotIds = new HashSet<long>();
-        var visibleIds = new HashSet<long>();
+        var visible = new List<ConnectionSnapshot>(snapshots.Count);
+        var historyKept = 0;
 
+        // 历史记录只渲染最近 300 条，避免长时间运行后每次刷新都遍历并重排整张表。
         foreach (var snapshot in snapshots)
         {
-            snapshotIds.Add(snapshot.Id);
+            if (snapshot.IsActive)
+            {
+                visible.Add(snapshot);
+            }
+            else if (historyKept < 300)
+            {
+                visible.Add(snapshot);
+                historyKept++;
+            }
+        }
+
+        var activeOnly = ActiveOnlyToggle.IsOn;
+        var filter = FilterBox.Text.Trim();
+        var visibleIds = new HashSet<long>();
+
+        foreach (var snapshot in visible)
+        {
             if (activeOnly && !snapshot.IsActive)
             {
                 continue;
@@ -90,10 +114,13 @@ public sealed partial class ConnectionsPage : Page
 
     private void Filter_TextChanged(object sender, TextChangedEventArgs e)
     {
-        if (IsLoaded)
+        if (!IsLoaded)
         {
-            Refresh();
+            return;
         }
+
+        _filterTimer.Stop();
+        _filterTimer.Start();
     }
 
     private void Refresh_Click(object sender, RoutedEventArgs e) => Refresh();

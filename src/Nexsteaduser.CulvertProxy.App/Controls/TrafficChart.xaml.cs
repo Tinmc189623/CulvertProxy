@@ -15,7 +15,26 @@ public sealed partial class TrafficChart : UserControl
     private static readonly SolidColorBrush UpStroke = new(Color.FromArgb(255, 45, 212, 191));
     private static readonly SolidColorBrush DownStroke = new(Color.FromArgb(255, 96, 165, 250));
     private static readonly SolidColorBrush GridStroke = new(Color.FromArgb(28, 128, 128, 128));
+    private readonly Line[] _gridLines =
+    [
+        new Line { Stroke = GridStroke, StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 2, 4 } },
+        new Line { Stroke = GridStroke, StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 2, 4 } },
+        new Line { Stroke = GridStroke, StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 2, 4 } },
+    ];
+    private readonly Polyline _upLine = new()
+    {
+        Stroke = UpStroke,
+        StrokeThickness = 2.2,
+        StrokeLineJoin = PenLineJoin.Round,
+    };
+    private readonly Polyline _downLine = new()
+    {
+        Stroke = DownStroke,
+        StrokeThickness = 2.2,
+        StrokeLineJoin = PenLineJoin.Round,
+    };
     private IReadOnlyList<RateSample> _samples = [];
+    private bool _visualsReady;
 
     public TrafficChart()
     {
@@ -32,7 +51,6 @@ public sealed partial class TrafficChart : UserControl
 
     private void Rebuild()
     {
-        Plot.Children.Clear();
         var width = Root.ActualWidth;
         var height = Root.ActualHeight;
         if (width < 20 || height < 20)
@@ -40,29 +58,32 @@ public sealed partial class TrafficChart : UserControl
             return;
         }
 
+        EnsureVisuals();
+
         var top = 6d;
         var bottom = height - 6;
         var plotHeight = Math.Max(bottom - top, 1);
 
-        for (var i = 1; i <= 3; i++)
+        for (var i = 0; i < _gridLines.Length; i++)
         {
-            var y = top + plotHeight * i / 4;
-            Plot.Children.Add(new Line
-            {
-                X1 = 0,
-                X2 = width,
-                Y1 = y,
-                Y2 = y,
-                Stroke = GridStroke,
-                StrokeThickness = 1,
-                StrokeDashArray = new DoubleCollection { 2, 4 },
-            });
+            var line = _gridLines[i];
+            var y = top + plotHeight * (i + 1) / 4;
+            line.X1 = 0;
+            line.X2 = width;
+            line.Y1 = y;
+            line.Y2 = y;
         }
 
         var samples = _samples.Count > 120 ? _samples.Skip(_samples.Count - 120).ToArray() : _samples;
         if (samples.Count < 2)
         {
-            MaxLabel.Text = "等待流量";
+            _upLine.Visibility = Visibility.Collapsed;
+            _downLine.Visibility = Visibility.Collapsed;
+            if (MaxLabel.Text != "等待流量")
+            {
+                MaxLabel.Text = "等待流量";
+            }
+
             return;
         }
 
@@ -72,28 +93,45 @@ public sealed partial class TrafficChart : UserControl
             max = Math.Max(max, Math.Max(sample.UploadBytesPerSecond, sample.DownloadBytesPerSecond));
         }
 
-        MaxLabel.Text = FormatRate(max);
-        AddSeries(samples, sample => sample.UploadBytesPerSecond, max, width, top, plotHeight, UpStroke, 2.2);
-        AddSeries(samples, sample => sample.DownloadBytesPerSecond, max, width, top, plotHeight, DownStroke, 2.2);
+        var maxText = FormatRate(max);
+        if (MaxLabel.Text != maxText)
+        {
+            MaxLabel.Text = maxText;
+        }
+
+        _upLine.Visibility = Visibility.Visible;
+        _downLine.Visibility = Visibility.Visible;
+        UpdateSeries(_upLine, samples, sample => sample.UploadBytesPerSecond, max, width, top, plotHeight);
+        UpdateSeries(_downLine, samples, sample => sample.DownloadBytesPerSecond, max, width, top, plotHeight);
     }
 
-    private void AddSeries(
+    private void EnsureVisuals()
+    {
+        if (_visualsReady)
+        {
+            return;
+        }
+
+        _visualsReady = true;
+        foreach (var line in _gridLines)
+        {
+            Plot.Children.Add(line);
+        }
+
+        Plot.Children.Add(_upLine);
+        Plot.Children.Add(_downLine);
+    }
+
+    private static void UpdateSeries(
+        Polyline polyline,
         IReadOnlyList<RateSample> samples,
         Func<RateSample, double> selector,
         double max,
         double width,
         double top,
-        double plotHeight,
-        Brush brush,
-        double thickness)
+        double plotHeight)
     {
-        var polyline = new Polyline
-        {
-            Stroke = brush,
-            StrokeThickness = thickness,
-            StrokeLineJoin = PenLineJoin.Round,
-        };
-
+        polyline.Points.Clear();
         for (var i = 0; i < samples.Count; i++)
         {
             var x = width * i / (samples.Count - 1);
@@ -101,8 +139,6 @@ public sealed partial class TrafficChart : UserControl
             var y = top + plotHeight - (normalized * plotHeight);
             polyline.Points.Add(new Point(x, y));
         }
-
-        Plot.Children.Add(polyline);
     }
 
     private static string FormatRate(double bytesPerSecond)

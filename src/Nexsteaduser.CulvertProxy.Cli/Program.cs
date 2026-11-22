@@ -10,7 +10,7 @@ namespace Nexsteaduser.CulvertProxy.Cli;
 
 internal static class Program
 {
-    private const string Version = "1.0.0";
+    private const string Version = "1.0.1";
 
     public static async Task<int> Main(string[] args)
     {
@@ -21,6 +21,7 @@ internal static class Program
             "run" => await RunAsync(args).ConfigureAwait(false),
             "resolve" => await ResolveAsync(args).ConfigureAwait(false),
             "check" => await CheckAsync(args).ConfigureAwait(false),
+            "mcp" => await RunMcpAsync().ConfigureAwait(false),
             "version" or "--version" or "-v" => PrintVersion(),
             _ => PrintHelp(),
         };
@@ -50,10 +51,33 @@ CulvertProxy - SOCKS5 / HTTP 高性能代理客户端
   culvert check [目标主机:端口] [--config <路径>]
       测试所有已启用上游的连通性与握手延迟。
 
+  culvert mcp
+      通过 stdio 启动 MCP 服务。工具会连接正在运行的 CulvertProxy 界面进程，
+      用于查询状态、连接、规则，并启动/停止代理或测试上游。
+
   culvert version
       显示版本信息。
 """);
         return 0;
+    }
+
+    private static async Task<int> RunMcpAsync()
+    {
+        using var cancellation = new CancellationTokenSource();
+        ConsoleCancelEventHandler handler = (_, e) =>
+        {
+            e.Cancel = true;
+            cancellation.Cancel();
+        };
+        Console.CancelKeyPress += handler;
+        try
+        {
+            return await McpServer.RunAsync(cancellation.Token).ConfigureAwait(false);
+        }
+        finally
+        {
+            Console.CancelKeyPress -= handler;
+        }
     }
 
     private static async Task<int> RunAsync(string[] args)
@@ -334,3 +358,4 @@ CulvertProxy - SOCKS5 / HTTP 高性能代理客户端
 
     private static string FormatRate(double bytesPerSecond) => $"{FormatBytes((long)bytesPerSecond)}/s";
 }
+

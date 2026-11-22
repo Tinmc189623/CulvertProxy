@@ -64,6 +64,9 @@ public sealed class ProxyEngine : IAsyncDisposable
     private readonly ConnectionRegistry _connections = new();
     private readonly TrafficStats _stats = new();
     private readonly InterceptionCoordinator _interception;
+    private readonly object _snapshotGate = new();
+    private EngineSnapshot? _snapshotCache;
+    private DateTime _snapshotCacheAt;
     private CancellationTokenSource? _engineCts;
     private LocalProxyServer? _localServer;
     private LocalDnsServer? _dnsServer;
@@ -139,6 +142,7 @@ public sealed class ProxyEngine : IAsyncDisposable
             StartDnsServer(_engineCts.Token);
             _metricsTimer = new Timer(_ => _stats.Sample(), null, 1000, 1000);
             await _interception.ApplyAsync(_config, _engineCts.Token).ConfigureAwait(false);
+            InvalidateSnapshot();
             _log.Info("Engine", $"代理引擎已启动，本地入口 {DescribeListener()}。");
         }
         finally
@@ -170,6 +174,7 @@ public sealed class ProxyEngine : IAsyncDisposable
             _engineCts?.Dispose();
             _engineCts = null;
             _stats.Sample();
+            InvalidateSnapshot();
             _log.Info("Engine", "代理引擎已停止。");
         }
         finally
@@ -229,6 +234,7 @@ public sealed class ProxyEngine : IAsyncDisposable
                 DisableStaleInterception();
             }
 
+            InvalidateSnapshot();
             _log.Info("Engine", "配置已重新加载。");
         }
         finally
@@ -288,6 +294,29 @@ public sealed class ProxyEngine : IAsyncDisposable
 
     public EngineSnapshot GetSnapshot()
     {
+        // 多个页面各自轮询状态；250 ms 合并窗口避免每秒重复拼装完整快照。
+        lock (_snapshotGate)
+        {
+            var now = DateTime.UtcNow;
+            if (_snapshotCache is not null && (now - _snapshotCacheAt).TotalMilliseconds < 250)
+            {
+                // 计数器和采样点保持实时；健康度与注入进程列表允许短时间复用。
+                return _snapshotCache with
+                {
+                    Traffic = _stats.Snapshot(),
+                    ActiveConnections = _connections.ActiveCount,
+                };
+            }
+
+            var snapshot = BuildSnapshot();
+            _snapshotCache = snapshot;
+            _snapshotCacheAt = now;
+            return snapshot;
+        }
+    }
+
+    private EngineSnapshot BuildSnapshot()
+    {
         var config = _config;
         var traffic = _stats.Snapshot();
         var listenAddress = config.Listener.AllowLan && config.Listener.BindAddress is "127.0.0.1" or "localhost"
@@ -310,6 +339,15 @@ public sealed class ProxyEngine : IAsyncDisposable
             _routes.SnapshotHealth(),
             _lastError,
             _interception.Snapshot(config));
+    }
+
+    private void InvalidateSnapshot()
+    {
+        lock (_snapshotGate)
+        {
+            _snapshotCache = null;
+            _snapshotCacheAt = default;
+        }
     }
 
     public IReadOnlyList<ConnectionSnapshot> GetConnections() => _connections.Snapshot();

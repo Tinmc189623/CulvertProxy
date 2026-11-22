@@ -1,4 +1,5 @@
 using Microsoft.UI.Dispatching;
+using Nexsteaduser.CulvertProxy.App.Dialogs;
 using Nexsteaduser.CulvertProxy.Core.Configuration;
 using Nexsteaduser.CulvertProxy.Core.Diagnostics;
 using Nexsteaduser.CulvertProxy.Core.Engine;
@@ -10,6 +11,7 @@ public sealed class AppServices : IAsyncDisposable
 {
     private readonly SemaphoreSlim _saveLock = new(1, 1);
     private readonly DispatcherQueue? _dispatcher = DispatcherQueue.GetForCurrentThread();
+    private readonly ControlPipeServer _controlPipe;
     private volatile AppConfig _config;
 
     public AppServices()
@@ -17,6 +19,7 @@ public sealed class AppServices : IAsyncDisposable
         AppPaths.EnsureCreated();
         Log = new LogHub(AppPaths.LogsDirectory);
         Store = new ConfigStore(Log);
+        IsFirstRun = !File.Exists(Store.FilePath);
         _config = Store.Load();
         if (!_config.Interception.Enabled)
         {
@@ -26,6 +29,7 @@ public sealed class AppServices : IAsyncDisposable
         Engine = new ProxyEngine(Log, _config);
         SystemProxy = new SystemProxyManager(Log);
         StartupManager.Apply(_config.Ui.StartWithWindows);
+        _controlPipe = new ControlPipeServer(this, Log);
     }
 
     public LogHub Log { get; }
@@ -33,6 +37,8 @@ public sealed class AppServices : IAsyncDisposable
     public ConfigStore Store { get; }
 
     public AppConfig Config => _config;
+
+    public bool IsFirstRun { get; }
 
     public ProxyEngine Engine { get; }
 
@@ -130,6 +136,51 @@ public sealed class AppServices : IAsyncDisposable
         _dispatcher.TryEnqueue(() => handler(this, EventArgs.Empty));
     }
 
+    /// <summary>应用配置向导结果；首次运行和手动重跑共用同一套归一化逻辑。</summary>
+    public async Task ApplySetupWizardAsync(SetupWizardResult result)
+    {
+        var next = ConfigCloner.Clone(_config);
+        next.Interception.Enabled = result.EnableInterception;
+        next.Interception.InjectRunningProcesses = result.InjectExisting;
+        next.Interception.AutoInjectNewProcesses = result.AutoInject;
+        next.Dns.Mode = result.UseDoh ? DnsResolutionMode.DnsOverHttps : DnsResolutionMode.System;
+        next.Dns.DohUrl = result.DohUrl;
+        next.Dns.DohThroughProxy = result.DohThroughProxy;
+        next.Dns.EnableServer = result.EnableLocalDns;
+        next.Dns.FakeIpEnabled = result.EnableFakeIp;
+        if (result.EnableLocalDns)
+        {
+            next.Dns.BindAddress = "127.0.0.1";
+            if (next.Dns.Port == 0)
+            {
+                next.Dns.Port = 5353;
+            }
+        }
+
+        if (result.Endpoint is not null)
+        {
+            next.Endpoints.Add(result.Endpoint);
+            if (next.Policies.Count == 0)
+            {
+                var policy = new RoutePolicy
+                {
+                    Name = "向导策略",
+                    Mode = RoutePolicyMode.Latency,
+                    Chains = [new ProxyChainSpec { EndpointIds = [result.Endpoint.Id] }],
+                };
+                next.Policies.Add(policy);
+                next.Engine.DefaultPolicyId = policy.Id;
+            }
+        }
+
+        next.Engine.StartProxyOnLaunch = true;
+        await SaveConfigAsync(next).ConfigureAwait(false);
+        if (result.StartEngine)
+        {
+            await StartEngineAsync().ConfigureAwait(false);
+        }
+    }
+
     /// <summary>启动或停止本地代理。</summary>
     public async Task ToggleEngineAsync()
     {
@@ -160,6 +211,7 @@ public sealed class AppServices : IAsyncDisposable
     {
         try
         {
+            await _controlPipe.DisposeAsync().ConfigureAwait(false);
             if (SystemProxy.IsEnabled)
             {
                 SystemProxy.Disable();

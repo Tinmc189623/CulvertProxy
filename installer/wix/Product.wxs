@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+      Name="CulvertProxy"
+      Manufacturer="Nexsteaduser"
+      Version="$(var.ProductVersion)"
+      UpgradeCode="B6D02FEA-C968-4678-A751-B870DCCE62AD"
+      Scope="perUser"
+      Compressed="yes"
+      InstallerVersion="500">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of CulvertProxy is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="AppIcon" SourceFile="$(var.PublishDir)\Assets\culvert.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Property Id="ARPURLINFOABOUT" Value="https://tinmc189623.github.io/CulvertProxy/" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+
+    <Feature Id="Main" Title="CulvertProxy" Level="1">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="ShortcutComponent" />
+    </Feature>
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="PROGRAMSFOLDER" Name="Programs">
+        <Directory Id="MANUFACTURERFOLDER" Name="Nexsteaduser">
+          <Directory Id="INSTALLFOLDER" Name="CulvertProxy" />
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="MENUFOLDER" Name="CulvertProxy" />
+    </StandardDirectory>
+  </Package>
+
+  <Fragment>
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(var.PublishDir)\**" />
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <Component Id="ShortcutComponent" Directory="MENUFOLDER" Guid="D0418A4A-F16D-43F4-BF18-06245D39BB71">
+      <Shortcut
+          Id="AppShortcut"
+          Name="CulvertProxy"
+          Description="Nexsteaduser CulvertProxy"
+          Target="[INSTALLFOLDER]CulvertProxy.exe"
+          WorkingDirectory="INSTALLFOLDER"
+          Icon="AppIcon" />
+      <RemoveFolder Id="RemoveMenuFolder" Directory="MENUFOLDER" On="uninstall" />
+      <RegistryValue
+          Root="HKCU"
+          Key="Software\Nexsteaduser\CulvertProxy"
+          Name="ShortcutInstalled"
+          Type="integer"
+          Value="1"
+          KeyPath="yes" />
+    </Component>
+  </Fragment>
+</Wix>

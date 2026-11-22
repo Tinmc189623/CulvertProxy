@@ -21,13 +21,19 @@ Copyright © 2026 Nexsteaduser. All Rights Reserved.
 
 ## 下载
 
-到 [Releases](https://github.com/Tinmc189623/CulvertProxy/releases/latest) 下载 `CulvertProxy-win-x64.zip`，解压后直接运行 `CulvertProxy.exe`。包内是自包含发布，不需要预装 .NET 或 Windows App SDK；`cli\culvert.exe` 是无界面 CLI。
+到 [Releases](https://github.com/Tinmc189623/CulvertProxy/releases/latest) 下载：
+
+- `CulvertProxy-win-x64.zip`：自包含便携包，解压后直接运行 `CulvertProxy.exe`
+- `CulvertProxy-1.0.1-x64.msi`：按用户安装到 `%LOCALAPPDATA%\Programs\Nexsteaduser\CulvertProxy`，创建开始菜单快捷方式
+- `CulvertProxy-1.0.1-x64.msix`：MSIX 安装包，需要先信任随包的签名证书
+
+包内是自包含发布，不需要预装 .NET 或 Windows App SDK；`cli\culvert.exe` 是无界面 CLI。
 
 ### 运行要求
 
 - Windows 11 24H2（build 26100）或更高，x64
 - 接管高完整性进程时以管理员身份运行
-- 未签名二进制可能触发 SmartScreen；正式部署请自行完成代码签名
+- 发行包使用自签名开发证书签名，不是公共 CA 证书。MSI 会提示未知发布者；MSIX 需要先把 `Nexsteaduser-CulvertProxy-Signing.cer` 放入当前用户的「受信任的根证书颁发机构」或「受信任人」存储。正式分发请换成 CA 代码签名证书后重签
 
 ---
 
@@ -41,7 +47,9 @@ Copyright © 2026 Nexsteaduser. All Rights Reserved.
 - **DNS**：系统解析或 DoH；DoH 可指定走代理；静态 hosts；本地 DNS 服务；fake-IP；拦截路径自带进程内 fake-IP，应用不向本地网络泄漏查询。注入层保留 `198.19.0.0/16`，引擎 fake-IP 默认使用不相交的 `198.18.0.0/16`，避免域名错配。
 - **可观测性**：实时吞吐图、活动连接（含进程归属、规则、链路、字节数）、连接历史、可取消连接、分级日志。
 - **系统集成**：PAC 系统代理、托盘、开机启动、关闭到托盘、深浅色主题。
-- **CLI**：发行包内 `cli\culvert.exe run / resolve / check / version`，可无界面跑引擎。
+- **配置向导**：首次启动引导选择透明接管、可选上游和 DNS；之后可从设置重新运行。
+- **MCP 服务**：`cli\culvert.exe mcp` 通过 stdio 暴露本机控制工具，让 AI 客户端查询状态/连接/规则，并启动、停止、重载或测试链路。
+- **CLI**：发行包内 `cli\culvert.exe run / resolve / check / mcp / version`，可无界面跑引擎。
 
 ---
 
@@ -63,6 +71,16 @@ pwsh -NoProfile -File .\build.ps1
 ```
 
 发布包同时包含 WinUI 应用与 `culvert.exe` CLI。
+
+构建 MSI 与 MSIX：
+
+```powershell
+dotnet tool install --global wix --version 5.0.2
+pwsh -NoProfile -File .\build.ps1 -Publish
+pwsh -NoProfile -File .\installer\build-packages.ps1 -CertThumbprint <证书指纹>
+```
+
+安装包脚本使用 Windows SDK 的 `makeappx.exe` 与 `signtool.exe`。传入 `-CertThumbprint` 时会签名便携包中的 exe/DLL、MSI 与 MSIX，并生成 SHA-256 校验文件。自签名证书只适合内部或受控分发；公共分发应使用 CA 代码签名证书。
 
 构建顺序是：原生 `CulvertHook.dll` → .NET 解决方案 → 全套单元/集成测试。
 
@@ -104,11 +122,12 @@ pwsh -NoProfile -File .\build.ps1 -Smoke
 
 ## 使用流程
 
-1. 打开「代理服务器」，新增上游。协议选 SOCKS5 或 HTTP CONNECT；需要伪装时勾选 TLS 并填写 SNI，必要时填叶证书指纹。
-2. 在「代理服务器」里建立策略。单服务器会自动生成默认策略；多服务器可以编排多跳链路，选择故障转移或延迟优先。
-3. 「路由规则」按从上到下的顺序匹配。默认配置已把回环与内网做成直连规则。未命中走「默认策略」；没有默认策略时直连。
-4. 启动代理。此时本地入口已可用，手动把 SOCKS5/HTTP 客户端指向 `127.0.0.1:1080` 即可。
-5. 需要接管桌面应用时，去「设置 → 透明接管」开启并保存。CulvertProxy 会注入当前用户的 64 位进程，并在之后约 1.2 秒的扫描周期内接管新进程。
+1. 首次启动会自动打开配置向导：选择是否启用透明接管，可填一个 SOCKS5 / HTTP 上游，再决定系统 DNS 或 DoH。找不到上游也可以直接完成，只使用本地入口。
+2. 打开「代理服务器」，可以继续新增上游。协议选 SOCKS5 或 HTTP CONNECT；需要伪装时勾选 TLS 并填写 SNI，必要时填叶证书指纹。
+3. 在「代理服务器」里建立策略。单服务器会自动生成默认策略；多服务器可以编排多跳链路，选择故障转移或延迟优先。
+4. 「路由规则」按从上到下的顺序匹配。默认配置已把回环与内网做成直连规则。未命中走「默认策略」；没有默认策略时直连。
+5. 启动代理。此时本地入口已可用，手动把 SOCKS5/HTTP 客户端指向 `127.0.0.1:1080` 即可。设置页的「配置向导」可以重新运行向导。
+6. 需要接管桌面应用时，去「设置 → 透明接管」开启并保存。CulvertProxy 会注入当前用户的 64 位进程，并在之后约 1.2 秒的扫描周期内接管新进程。
 
 ### 系统代理与透明接管的区别
 
@@ -128,6 +147,28 @@ pwsh -NoProfile -File .\build.ps1 -Smoke
 - 「入口不可用时回退直连」默认关闭。开启后引擎崩溃或端口不可达时，应用会直接连出去，真实地址会暴露。抗审查环境不要开。
 
 被排除的进程：内置排除系统关键进程、浏览器外的 Shell 组件、杀毒软件、构建工具与 CulvertProxy 自身。用户还可以在设置里按进程名或完整路径写通配符，例如 `game.exe`、`D:\Tools\*.exe`。配置改动会实时写入 Hook，已注入的进程也会在下一次检查时放行。
+
+---
+
+## MCP 服务
+
+先启动 `CulvertProxy.exe`，再让 MCP 客户端启动同一目录下的 CLI：
+
+```powershell
+# 安装 MSI 后的默认路径
+claude mcp add culvertproxy -- "$env:LOCALAPPDATA\Programs\Nexsteaduser\CulvertProxy\cli\culvert.exe" mcp
+```
+
+其他 MCP 客户端使用 stdio 配置：命令填上面命令实际解析出的 `culvert.exe` 绝对路径，参数填 `mcp`。便携包指向解压目录下的 `cli\culvert.exe`。
+
+可用工具：
+
+- `culvert_status`、`culvert_get_config`
+- `culvert_list_connections`、`culvert_list_endpoints`、`culvert_list_rules`、`culvert_list_policies`
+- `culvert_start`、`culvert_stop`、`culvert_reload`
+- `culvert_test_endpoint`、`culvert_kill_connection`
+
+MCP 不监听网络端口。CLI 通过当前用户隔离的命名管道连接界面进程，密码与 `hook.conf` 令牌不会出现在工具结果里。界面进程未运行时，工具会返回明确的错误。
 
 ---
 
@@ -227,7 +268,7 @@ dotnet test .\tests\Nexsteaduser.CulvertProxy.Tests\Nexsteaduser.CulvertProxy.Te
 - 不实现抗主动探测的传输协议。TLS 包装和证书固定解决的是链路可见性与中间人，不是高级流量指纹。
 - 没有服务模式。CulvertProxy 需要用户登录并运行；注销后引擎停止。
 - 同一用户同一时间只允许一个引擎启用透明接管。第二个实例会拿到错误状态而不会改写 `hook.conf`，避免两套令牌互相覆盖。
-- 未签名二进制可能被 SmartScreen 或安全软件提示。正式分发应做代码签名，并针对企业环境加白。
+- 当前发行包使用自签名开发证书。MSI 会显示未知发布者；MSIX 要求先把随包 `.cer` 放入受信任存储，或改用 CA 证书重签。未签名或不受信任的二进制也可能被 SmartScreen 或安全软件提示。
 - 端口转发类程序、使用原始套接字或自带内核网络栈的软件可能绕过 Winsock Hook。
 
 ---

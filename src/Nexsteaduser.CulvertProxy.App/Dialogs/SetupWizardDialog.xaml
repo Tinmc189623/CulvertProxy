@@ -1,0 +1,92 @@
+<ContentDialog
+    x:Class="Nexsteaduser.CulvertProxy.App.Dialogs.SetupWizardDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="配置向导"
+    PrimaryButtonText="下一步"
+    SecondaryButtonText=""
+    CloseButtonText="稍后"
+    DefaultButton="Primary"
+    MinWidth="560">
+    <ScrollViewer MaxHeight="540">
+        <StackPanel Spacing="14">
+            <TextBlock x:Name="StepLabel" Text="步骤 1 / 3" Style="{StaticResource Subtle}" />
+
+            <StackPanel x:Name="StepOne" Spacing="12">
+                <TextBlock Text="先决定流量怎么进入 CulvertProxy。" FontSize="20" FontWeight="SemiBold" />
+                <TextBlock
+                    Text="本地 SOCKS5 / HTTP 入口始终会启动。透明接管会注入当前用户的 x64 进程，让没有代理设置的应用也按规则分流。"
+                    Style="{StaticResource Subtle}" />
+                <ToggleSwitch
+                    x:Name="InterceptionSwitch"
+                    Header="启用透明接管"
+                    OnContent="已启用"
+                    OffContent="未启用"
+                    Toggled="Interception_Toggled" />
+                <CheckBox x:Name="InjectExistingBox" Content="接管已在运行的进程" />
+                <CheckBox x:Name="AutoInjectBox" Content="跟随新启动的进程" />
+                <CheckBox x:Name="StartOnFinishBox" Content="完成后立即启动代理" IsChecked="True" />
+                <TextBlock
+                    Text="接管高完整性进程需要以管理员身份运行 CulvertProxy。只接管当前登录会话的 x64 用户进程。"
+                    Style="{StaticResource Subtle}" />
+            </StackPanel>
+
+            <StackPanel x:Name="StepTwo" Spacing="12" Visibility="Collapsed">
+                <TextBlock Text="添加上游服务器。" FontSize="20" FontWeight="SemiBold" />
+                <TextBlock Text="主机留空则只启动本地入口，不配置上游；也可以稍后在「代理服务器」里添加。" Style="{StaticResource Subtle}" />
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.1*" />
+                        <ColumnDefinition Width="2.2*" />
+                        <ColumnDefinition Width="0.9*" />
+                    </Grid.ColumnDefinitions>
+                    <ComboBox x:Name="ProtocolBox" Header="协议" HorizontalAlignment="Stretch" SelectionChanged="Protocol_SelectionChanged" />
+                    <TextBox Grid.Column="1" x:Name="HostBox" Header="主机" PlaceholderText="203.0.113.10 或 proxy.example.com" />
+                    <NumberBox Grid.Column="2" x:Name="PortBox" Header="端口" Minimum="1" Maximum="65535" Value="1080" SpinButtonPlacementMode="Compact" />
+                </Grid>
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="UsernameBox" Header="用户名（可选）" />
+                    <PasswordBox Grid.Column="1" x:Name="PasswordBox" Header="密码（可选）" />
+                </Grid>
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <CheckBox x:Name="TlsBox" Content="TLS 包装" VerticalAlignment="Bottom" />
+                    <TextBox Grid.Column="1" x:Name="SniBox" Header="TLS SNI（可选）" PlaceholderText="cdn.example.com" />
+                </Grid>
+            </StackPanel>
+
+            <StackPanel x:Name="StepThree" Spacing="12" Visibility="Collapsed">
+                <TextBlock Text="DNS 与完成。" FontSize="20" FontWeight="SemiBold" />
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <ComboBox x:Name="DnsModeBox" Header="解析方式" HorizontalAlignment="Stretch" SelectionChanged="DnsMode_SelectionChanged" />
+                    <TextBox Grid.Column="1" x:Name="DohUrlBox" Header="DoH 地址" PlaceholderText="https://1.1.1.1/dns-query" />
+                </Grid>
+                <CheckBox x:Name="DohProxyBox" Content="DoH 走代理" />
+                <CheckBox x:Name="LocalDnsBox" Content="启用本地 DNS（127.0.0.1:5353）" />
+                <CheckBox x:Name="FakeIpBox" Content="启用 fake-IP" />
+                <Border Style="{StaticResource Card}" Padding="14">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="即将应用" Style="{StaticResource SectionTitle}" />
+                        <TextBlock x:Name="SummaryText" Style="{StaticResource Subtle}" />
+                    </StackPanel>
+                </Border>
+                <TextBlock
+                    Text="本地 DNS + fake-IP 需要把系统 DNS 指向 127.0.0.1:5353，并依赖透明接管还原域名；上游与 DoH 地址建议使用 IP，SNI 单独填写域名。DoH 的系统回退会使用明文 DNS。"
+                    Style="{StaticResource Subtle}" />
+            </StackPanel>
+
+            <TextBlock x:Name="ErrorText" Foreground="{ThemeResource BadBrush}" TextWrapping="Wrap" />
+        </StackPanel>
+    </ScrollViewer>
+</ContentDialog>

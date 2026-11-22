@@ -139,14 +139,14 @@ img {
 }
 
 .brand-mark {
-  display: inline-grid;
-  place-items: center;
+  display: block;
   width: 30px;
   height: 30px;
-  color: var(--flow);
+  flex-shrink: 0;
 }
 
-.brand-mark svg {
+.brand-mark img {
+  display: block;
   width: 100%;
   height: 100%;
 }
@@ -767,33 +767,19 @@ img {
   font-weight: 700;
 }
 
-.checksum-block code {
-  display: block;
-  padding: 12px;
-  background: rgba(247, 241, 230, 0.35);
-  border: 1px solid rgba(23, 18, 8, 0.16);
-  font-family: var(--mono);
-  font-size: 10.5px;
-  line-height: 1.7;
-  overflow-wrap: anywhere;
-  color: var(--dark-ink);
-}
-
-.copy-button {
-  margin-top: 10px;
-  padding: 7px 11px;
+.checksum-link {
+  display: inline-block;
+  padding: 8px 12px;
   border: 1px solid rgba(23, 18, 8, 0.42);
   border-radius: 2px;
-  background: transparent;
   color: var(--dark-ink);
-  font-family: var(--body);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 650;
-  cursor: pointer;
+  text-decoration: none;
   transition: background-color 160ms ease, color 160ms ease;
 }
 
-.copy-button:hover {
+.checksum-link:hover {
   background: var(--dark-ink);
   color: #f7f1e6;
 }

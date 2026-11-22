@@ -6,6 +6,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Nexsteaduser.CulvertProxy.App.Dialogs;
 using Nexsteaduser.CulvertProxy.App.Pages;
 using Nexsteaduser.CulvertProxy.App.Services;
 using Nexsteaduser.CulvertProxy.Core.Configuration;
@@ -23,6 +24,7 @@ public sealed partial class MainWindow : Window
     private bool _shutdown;
     private bool _hideOnStartup;
     private string? _currentPage;
+    private string? _lastTooltip;
 
     public MainWindow()
     {
@@ -110,13 +112,46 @@ public sealed partial class MainWindow : Window
         });
     }
 
-    private void OnRootLoaded(object sender, RoutedEventArgs e)
+    private async void OnRootLoaded(object sender, RoutedEventArgs e)
     {
         ApplyTitleBarTheme();
         UpdateChrome();
-        if (_hideOnStartup && _tray is not null)
+        if (App.Services.IsFirstRun)
+        {
+            await ShowSetupWizardAsync(firstRun: true);
+        }
+
+        if (_hideOnStartup && _tray is not null && !App.Services.IsFirstRun)
         {
             AppWindow.Hide();
+        }
+    }
+
+    private async Task ShowSetupWizardAsync(bool firstRun)
+    {
+        try
+        {
+            var dialog = new SetupWizardDialog(App.Services.Config) { XamlRoot = RootGrid.XamlRoot };
+            var choice = await dialog.ShowAsync();
+            if (choice == ContentDialogResult.Primary && dialog.Result is { } setup)
+            {
+                await App.Services.ApplySetupWizardAsync(setup);
+            }
+            else if (firstRun)
+            {
+                // 关闭向导也要写入一次配置，避免下次启动重复弹出。
+                await App.Services.SaveConfigAsync(ConfigCloner.Clone(App.Services.Config));
+                if (App.Services.Config.Engine.StartProxyOnLaunch)
+                {
+                    await App.Services.StartEngineAsync();
+                }
+            }
+
+            UpdateChrome();
+        }
+        catch (Exception ex)
+        {
+            App.Services.Log.Error("Setup", $"配置向导失败：{ex.Message}", ex);
         }
     }
 
@@ -161,13 +196,33 @@ public sealed partial class MainWindow : Window
     private void UpdateChrome()
     {
         var snapshot = App.Services.Engine.GetSnapshot();
-        StatusDot.Fill = snapshot.IsRunning ? RunningBrush : StoppedBrush;
-        StatusLabel.Text = snapshot.IsRunning ? $"运行中 · {snapshot.ActiveConnections} 连接" : "已停止";
-        PaneEndpoint.Text = snapshot.ListenerRunning ? $"{snapshot.ListenAddress}:{snapshot.ListenPort}" : "未监听";
+        var dot = snapshot.IsRunning ? RunningBrush : StoppedBrush;
+        if (!ReferenceEquals(StatusDot.Fill, dot))
+        {
+            StatusDot.Fill = dot;
+        }
+
+        var label = snapshot.IsRunning ? $"运行中 · {snapshot.ActiveConnections} 连接" : "已停止";
+        if (StatusLabel.Text != label)
+        {
+            StatusLabel.Text = label;
+        }
+
+        var pane = snapshot.ListenerRunning ? $"{snapshot.ListenAddress}:{snapshot.ListenPort}" : "未监听";
+        if (PaneEndpoint.Text != pane)
+        {
+            PaneEndpoint.Text = pane;
+        }
+
         var intercept = snapshot.Interception.Active ? $" · 接管 {snapshot.Interception.InjectedProcesses} 进程" : string.Empty;
-        _tray?.SetTooltip(snapshot.IsRunning
+        var tooltip = snapshot.IsRunning
             ? $"CulvertProxy — 运行中 · {snapshot.ActiveConnections} 连接{intercept}"
-            : "CulvertProxy — 已停止");
+            : "CulvertProxy — 已停止";
+        if (_lastTooltip != tooltip)
+        {
+            _lastTooltip = tooltip;
+            _tray?.SetTooltip(tooltip);
+        }
     }
 
     private void Nav_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)

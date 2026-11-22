@@ -9,13 +9,14 @@
                     <TextBlock Text="设置" Style="{StaticResource PageTitle}" />
                     <TextBlock Text="修改会写入 config.json 并热加载引擎；绑定地址变化时只重启本地入口。" Style="{StaticResource Subtle}" />
                 </StackPanel>
-                <Button
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Center"
-                    Content="保存并应用"
-                    Click="Save_Click"
-                    Style="{StaticResource AccentButtonStyle}"
-                    Padding="18,8" />
+                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button Content="配置向导" Click="Wizard_Click" Padding="14,8" />
+                    <Button
+                        Content="保存并应用"
+                        Click="Save_Click"
+                        Style="{StaticResource AccentButtonStyle}"
+                        Padding="18,8" />
+                </StackPanel>
             </Grid>
 
             <InfoBar x:Name="SaveBar" IsOpen="False" IsClosable="True" />

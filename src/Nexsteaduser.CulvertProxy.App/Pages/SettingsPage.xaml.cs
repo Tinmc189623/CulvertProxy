@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Nexsteaduser.CulvertProxy.App.Dialogs;
 using Nexsteaduser.CulvertProxy.App.Services;
 using Nexsteaduser.CulvertProxy.Core.Configuration;
 using Nexsteaduser.CulvertProxy.Core.Routing;
@@ -101,6 +102,31 @@ public sealed partial class SettingsPage : Page
             ? 0
             : _config.Policies.FindIndex(policy => policy.Id == policyId) + 1;
         DohPolicyBox.SelectedIndex = Math.Clamp(index, 0, items.Count - 1);
+    }
+
+    private async void Wizard_Click(object sender, RoutedEventArgs e)
+    {
+        SaveBar.IsOpen = false;
+        try
+        {
+            var dialog = new SetupWizardDialog(App.Services.Config) { XamlRoot = XamlRoot };
+            if (await dialog.ShowAsync() != ContentDialogResult.Primary || dialog.Result is null)
+            {
+                return;
+            }
+
+            await App.Services.ApplySetupWizardAsync(dialog.Result);
+            LoadControls();
+            SaveBar.Severity = InfoBarSeverity.Success;
+            SaveBar.Message = "配置向导已应用，引擎已重新加载。";
+            SaveBar.IsOpen = true;
+        }
+        catch (Exception ex)
+        {
+            SaveBar.Severity = InfoBarSeverity.Error;
+            SaveBar.Message = ex.Message;
+            SaveBar.IsOpen = true;
+        }
     }
 
     private async void Save_Click(object sender, RoutedEventArgs e)
@@ -324,7 +350,12 @@ public sealed partial class SettingsPage : Page
             parts.Add(snapshot.LastInjectionError);
         }
 
-        InterceptStatusText.Text = string.Join(" · ", parts);
+        var statusText = string.Join(" · ", parts);
+        if (InterceptStatusText.Text != statusText)
+        {
+            InterceptStatusText.Text = statusText;
+        }
+
         InjectNowButton.IsEnabled = snapshot.Active;
     }
 

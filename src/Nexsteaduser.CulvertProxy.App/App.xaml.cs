@@ -29,10 +29,6 @@ public partial class App : Application
         try
         {
             Services = new AppServices();
-            if (Services.Config.Engine.StartProxyOnLaunch)
-            {
-                Services.Engine.StartAsync().GetAwaiter().GetResult();
-            }
         }
         catch (Exception ex)
         {
@@ -49,5 +45,23 @@ public partial class App : Application
         _window = new MainWindow();
         MainWindowInstance = _window;
         _window.Activate();
+
+        // 窗口先呈现，引擎随后在后台启动，避免启动阶段阻塞 UI 线程。
+        if (Services is not null && Services.Config.Engine.StartProxyOnLaunch && !Services.IsFirstRun)
+        {
+            _ = StartEngineInBackgroundAsync(Services);
+        }
+    }
+
+    private static async Task StartEngineInBackgroundAsync(AppServices services)
+    {
+        try
+        {
+            await services.StartEngineAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            services.Log.Error("App", $"后台启动代理失败：{ex.Message}", ex);
+        }
     }
 }
